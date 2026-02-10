@@ -26,19 +26,19 @@ TEMPO_MINIMO = {
 POSTOS_COM_EXCEDENTE = ['CB', '3º SGT', '2º SGT', '2º TEN', '1º TEN', 'CAP']
 
 VAGAS_QOA = {
-    'SD 1': 600, 'CB': 600, '3º SGT': 573, '2º SGT': 409, '1º SGT': 245,
+    'SD 1': 534, 'CB': 507, '3º SGT': 463, '2º SGT': 341, '1º SGT': 245,
     'SUB TEN': 96, '2º TEN': 34, '1º TEN': 29, 'CAP': 24, 'MAJ': 10, 'TEN CEL': 3, 'CEL': 9999
 }
 
 VAGAS_QOMT = {
-    'SD 1': 30, 'CB': 30, '3º SGT': 30,
+    'SD 1': 107, 'CB': 101, '3º SGT': 93,
     '2º SGT': 68, '1º SGT': 49, 'SUB TEN': 19, 
     '2º TEN': 14, '1º TEN': 11, 'CAP': 8, 'MAJ': 4, 'TEN CEL': 2, 'CEL': 0
 }
 
 VAGAS_QOM = {
-    'SD 1': 30, 'CB': 30,
-    '3º SGT': 1, '2º SGT': 13, '1º SGT': 10, 'SUB TEN': 5, 
+    'SD 1': 20, 'CB': 19,
+    '3º SGT': 17, '2º SGT': 13, '1º SGT': 10, 'SUB TEN': 5, 
     '2º TEN': 11, '1º TEN': 9, 'CAP': 6, 'MAJ': 4, 'TEN CEL': 2, 'CEL': 0
 }
 
