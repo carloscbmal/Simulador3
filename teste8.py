@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -16,8 +15,8 @@ import matplotlib.pyplot as plt
 HIERARQUIA = ['SD 1', 'CB', '3º SGT', '2º SGT', '1º SGT', 'SUB TEN', 
               '2º TEN', '1º TEN', 'CAP', 'MAJ', 'TEN CEL', 'CEL']
 
-# NOVO OBJETIVO: Postos superiores a 1º SGT
-POSTOS_MAPA = ['SUB TEN', '2º TEN', '1º TEN', 'CAP', 'MAJ', 'TEN CEL', 'CEL']
+# ALTERAÇÃO: Adicionado 1º SGT e removido CEL
+POSTOS_MAPA = ['1º SGT', 'SUB TEN', '2º TEN', '1º TEN', 'CAP', 'MAJ', 'TEN CEL']
 
 TEMPO_MINIMO = {
     'SD 1': 5, 'CB': 3, '3º SGT': 3, '2º SGT': 3, '1º SGT': 2,
@@ -79,7 +78,6 @@ def executar_simulacao_quadro(df_input, vagas_limite_base, data_alvo, tempo_apos
     
     datas_ciclo = []
     for ano in range(data_atual.year, data_alvo.year + 1):
-        # Datas oficiais de promoção (Ex: 26 Mai e 29 Nov)
         for mes, dia in [(6, 26), (11, 29)]:
             d = pd.Timestamp(year=ano, month=mes, day=dia)
             if data_atual <= d <= data_alvo:
@@ -87,14 +85,12 @@ def executar_simulacao_quadro(df_input, vagas_limite_base, data_alvo, tempo_apos
     datas_ciclo.sort()
 
     df_inativos = pd.DataFrame()
-    
-    # Dicionário para armazenar vagas abertas POR DATA
     vagas_abertas_log = {} 
 
     for data_referencia in datas_ciclo:
         extras_hoje = (vagas_extras_dict or {}).get(data_referencia, {})
 
-        # PASSO 1: CALCULAR VAGAS ABERTAS (SNAPSHOT ANTES DAS PROMOÇÕES)
+        # PASSO 1: CALCULAR VAGAS ABERTAS (SNAPSHOT)
         snapshot_vagas = {}
         for posto in HIERARQUIA:
             limite_atual = vagas_limite_base.get(posto, 9999) + extras_hoje.get(posto, 0)
@@ -104,13 +100,11 @@ def executar_simulacao_quadro(df_input, vagas_limite_base, data_alvo, tempo_apos
         
         vagas_abertas_log[data_referencia] = snapshot_vagas
 
-        # PASSO 2: PROMOÇÕES (Preenchimento das vagas)
+        # PASSO 2: PROMOÇÕES
         for i in range(len(HIERARQUIA) - 1):
             posto_atual = HIERARQUIA[i]
             proximo_posto = HIERARQUIA[i+1]
             
-            # Recalcula vagas disponíveis para o loop de promoção (pois a absorção ou promoções em cascata podem mudar algo)
-            # Mas para o gráfico, usaremos o snapshot acima.
             limite_atual = vagas_limite_base.get(proximo_posto, 9999) + extras_hoje.get(proximo_posto, 0)
             ocupados_reais = len(df[(df['Posto_Graduacao'] == proximo_posto) & (df['Excedente'] != "x")])
             vagas_disponiveis = limite_atual - ocupados_reais
@@ -120,20 +114,17 @@ def executar_simulacao_quadro(df_input, vagas_limite_base, data_alvo, tempo_apos
             for idx, militar in candidatos.iterrows():
                 anos_no_posto = relativedelta(data_referencia, militar['Ultima_promocao']).years
                 
-                # Regra de Excedente (promoção automática após tempo máximo)
                 if posto_atual in POSTOS_COM_EXCEDENTE and anos_no_posto >= 6:
                     df.at[idx, 'Posto_Graduacao'] = proximo_posto
                     df.at[idx, 'Ultima_promocao'] = data_referencia
                     df.at[idx, 'Excedente'] = "x"
-                
-                # Promoção por Vaga
                 elif anos_no_posto >= TEMPO_MINIMO.get(posto_atual, 99) and vagas_disponiveis > 0:
                     df.at[idx, 'Posto_Graduacao'] = proximo_posto
                     df.at[idx, 'Ultima_promocao'] = data_referencia
                     df.at[idx, 'Excedente'] = ""
                     vagas_disponiveis -= 1
 
-        # PASSO 3: ABSORÇÃO DE EXCEDENTES
+        # PASSO 3: ABSORÇÃO
         for posto in HIERARQUIA:
             limite_atual = vagas_limite_base.get(posto, 9999) + extras_hoje.get(posto, 0)
             ocupados_normais = len(df[(df['Posto_Graduacao'] == posto) & (df['Excedente'] != "x")])
@@ -144,7 +135,7 @@ def executar_simulacao_quadro(df_input, vagas_limite_base, data_alvo, tempo_apos
                 for idx_exc in excedentes.head(int(vagas_abertas)).index:
                     df.at[idx_exc, 'Excedente'] = ""
 
-        # PASSO 4: APOSENTADORIA (Gera vagas para o próximo ciclo)
+        # PASSO 4: APOSENTADORIA
         idade = pd.to_numeric(df['Data_Nascimento'].apply(lambda x: get_anos(data_referencia, x)))
         servico = pd.to_numeric(df['Data_Admissao'].apply(lambda x: get_anos(data_referencia, x)))
         mask_apo = (idade >= 63) | (servico >= tempo_aposentadoria)
@@ -153,7 +144,6 @@ def executar_simulacao_quadro(df_input, vagas_limite_base, data_alvo, tempo_apos
             df_inativos = pd.concat([df_inativos, df[mask_apo].copy()], ignore_index=True)
             df = df[~mask_apo].copy()
 
-    # Retorna o log de vagas abertas em vez de sobras
     return df, df_inativos, {}, vagas_abertas_log
 
 # ==========================================
@@ -163,7 +153,7 @@ def executar_simulacao_quadro(df_input, vagas_limite_base, data_alvo, tempo_apos
 def main():
     st.set_page_config(page_title="Vagas Promoção QOA", layout="wide")
     
-    st.title("📊 Disponibilidade de Vagas para Promoção (Acima de 1º SGT)")
+    st.title("📊 Disponibilidade de Vagas para Promoção (De 1º SGT a TEN CEL)")
     st.markdown("Visualize quantas vagas estarão abertas **na data oficial da promoção**, antes do processamento das mesmas.")
 
     df_militares = carregar_dados('militares.xlsx')
@@ -175,12 +165,9 @@ def main():
         return
 
     tempo_aposentadoria = 35
-    # Reduzi a data alvo para 2035 para o gráfico não ficar ilegível com tantas colunas
-    # Se precisar até 2060, o gráfico ficará muito largo
     data_alvo = datetime(2035, 12, 31) 
 
     with st.spinner('Gerando simulação de vagas...'):
-        # Simulações auxiliares para migração de vagas
         vagas_migradas = {}
         if df_condutores is not None:
             _, _, _, s_cond = executar_simulacao_quadro(df_condutores, VAGAS_QOMT, data_alvo, tempo_aposentadoria, [])
@@ -194,7 +181,6 @@ def main():
                     mq = q if p in HIERARQUIA[:6] else math.ceil(q/2)
                     vagas_migradas[d][p] = vagas_migradas[d].get(p, 0) + mq
 
-        # Simulação principal QOA
         df_final, df_inativos, _, log_vagas = executar_simulacao_quadro(
             df_militares, VAGAS_QOA, data_alvo, tempo_aposentadoria, [], vagas_migradas
         )
@@ -202,54 +188,47 @@ def main():
     if log_vagas:
         dados_heatmap = []
         for d_ref, v_dict in log_vagas.items():
-            # Formata data para string curta (ex: 26/05/26)
             nome_data = d_ref.strftime('%d/%m/%y')
             for p, q in v_dict.items():
-                if p in POSTOS_MAPA: # Filtra apenas > 1º SGT
+                if p in POSTOS_MAPA: # Filtro aplicado
                     dados_heatmap.append({'Data': nome_data, 'Posto/Graduação': p, 'Vagas': q})
         
         df_h = pd.DataFrame(dados_heatmap)
         
         if not df_h.empty:
-            # Pivot sem agregação de ano, mantendo as colunas por Data Oficial
             df_pivot = df_h.pivot_table(index='Posto/Graduação', columns='Data', values='Vagas', sort=False)
             
-            # Reordenar o Eixo Y (Hierarquia)
+            # Reordenar eixo Y conforme POSTOS_MAPA invertido (para o mais alto ficar em cima)
             df_pivot = df_pivot.reindex(reversed(POSTOS_MAPA))
             
-            # Reordenar colunas (Datas) cronologicamente
-            # Como transformamos em string, precisamos garantir a ordem correta baseada no log original
             datas_ordenadas = [d.strftime('%d/%m/%y') for d in sorted(log_vagas.keys())]
-            # Filtra apenas datas que existem no pivot (caso alguma data não tenha tido registro)
             datas_ordenadas = [d for d in datas_ordenadas if d in df_pivot.columns]
             df_pivot = df_pivot[datas_ordenadas]
 
-            # Configuração Visual
             plt.style.use('default')
-            # Largura dinâmica baseada no número de datas
             largura_fig = max(10, len(datas_ordenadas) * 0.4)
             fig, ax = plt.subplots(figsize=(largura_fig, 6))
             
+            # ALTERAÇÃO: cmap="Blues"
             sns.heatmap(df_pivot, 
                         annot=True, 
                         fmt='.0f', 
-                        cmap="Greens", # Mudei para verde para indicar "disponibilidade"
+                        cmap="Blues", 
                         linewidths=0.5, 
                         linecolor='white',
                         cbar_kws={'label': 'Vagas Disponíveis'},
                         ax=ax,
-                        annot_kws={"size": 9})
+                        annot_kws={"size": 9, "weight": "bold"})
             
             ax.set_title("Vagas Disponíveis por Data Oficial de Promoção", pad=20, fontsize=14)
             ax.set_xlabel("Data do Ciclo", fontsize=12)
             ax.set_ylabel("Posto/Graduação", fontsize=12)
             
-            # Rotacionar as datas no eixo X para leitura
             plt.xticks(rotation=45, ha='right')
             
             st.pyplot(fig)
 
-            st.info("Nota: Os valores representam as vagas existentes (Limite - Ocupados) no início do dia da promoção, considerando aposentadorias e promoções anteriores.")
+            st.info("Nota: Os valores representam as vagas existentes (Limite - Ocupados) no início do dia da promoção.")
         else:
             st.warning("Nenhum dado encontrado para os postos selecionados.")
 
